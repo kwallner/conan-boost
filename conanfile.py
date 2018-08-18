@@ -33,7 +33,7 @@ class BoostConan(ConanFile):
     default_options.append("without_python=True")
     default_options = tuple(default_options)
 
-    url = "https://github.com/lasote/conan-boost"
+    url = "https://github.com/kwallner/conan-boost"
     license = "Boost Software License - Version 1.0. http://www.boost.org/LICENSE_1_0.txt"
     short_paths = True
     no_copy_source = False
