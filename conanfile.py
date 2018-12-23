@@ -10,13 +10,13 @@ import sys
 lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iostreams', 'locale', 'log',
             'program_options', 'random', 'regex', 'mpi', 'serialization', 'signals',
             'coroutine', 'fiber', 'context', 'timer', 'thread', 'chrono', 'date_time',
-            'atomic', 'filesystem', 'system', 'graph_parallel', 'python',
+            'atomic', 'filesystem', 'system', 'graph_parallel', 'python', 'safe_numerics',
             'stacktrace', 'test', 'type_erasure']
 
 
 class BoostConan(ConanFile):
     name = "boost"
-    version = "1.68.0"
+    version = "1.69.0"
     settings = "os", "arch", "compiler", "build_type"
     folder_name = "boost_%s" % version.replace(".", "_")
     description = "Boost provides free peer-reviewed portable C++ source libraries"
