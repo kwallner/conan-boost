@@ -42,7 +42,7 @@ class BoostConan(ConanFile):
         "skip_lib_rename" : False, 
         "magic_autolink" : False # enables BOOST_ALL_NO_LIB
     }
-    default_options.update({"without_%s" % libname : libname != "python" for libname in lib_list})
+    default_options.update({"without_%s" % libname : libname == "python" for libname in lib_list})
     default_options.update({"bzip2:shared" : False })
     default_options.update({"zlib:shared" : False })
 
@@ -88,6 +88,9 @@ class BoostConan(ConanFile):
     ##################### BUILDING METHODS ###########################
 
     def build(self):
+        # Dump build flags
+        #for libname in lib_list:
+        #    self.output.info("XXX: Checking flag \"without_%s\": %s" % (libname,  getattr(self.options, "without_%s" % libname)))
         if self.options.header_only:
             self.output.warn("Header only package, skipping build")
             return
