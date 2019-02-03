@@ -2,10 +2,16 @@ from conans import ConanFile
 from conans import tools
 from conans.client.build.cppstd_flags import cppstd_flag
 from conans.model.version import Version
+from conans.errors import ConanException
 
 import os
 import sys
 import shutil
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 # From from *1 (see below, b2 --show-libraries), also ordered following linkage order
 # see https://github.com/Kitware/CMake/blob/master/Modules/FindBoost.cmake to know the order
@@ -31,7 +37,8 @@ class BoostConan(ConanFile):
         "header_only": [True, False],
         "fPIC": [True, False],
         "skip_lib_rename": [True, False],
-        "magic_autolink": [True, False] # enables BOOST_ALL_NO_LIB
+        "magic_autolink": [True, False], # enables BOOST_ALL_NO_LIB
+		"python_version": "ANY"  
     }
     options.update({"without_%s" % libname: [True, False] for libname in lib_list})
 
@@ -40,7 +47,8 @@ class BoostConan(ConanFile):
         "header_only" : False, 
         "fPIC" : True,
         "skip_lib_rename" : False, 
-        "magic_autolink" : False # enables BOOST_ALL_NO_LIB
+        "magic_autolink" : False, # enables BOOST_ALL_NO_LIB
+		"python_version" : "3.7.1" # Latest python version in conan-python3 
     }
     default_options.update({"without_%s" % libname : libname == "python" for libname in lib_list})
     default_options.update({"bzip2:shared" : False })
@@ -54,8 +62,12 @@ class BoostConan(ConanFile):
     exports = ['patches/*']
 
     def config_options(self):
-        if self.settings.compiler == "Visual Studio":
+        if self.settings.os == "Windows":
             self.options.remove("fPIC")
+
+    @property
+    def _is_msvc(self):
+        return self.settings.compiler == "Visual Studio"
 
     @property
     def zip_bzip2_requires_needed(self):
@@ -65,10 +77,17 @@ class BoostConan(ConanFile):
         if self.zip_bzip2_requires_needed:
             self.requires("bzip2/1.0.6@%s/%s" % (self.user, self.channel))
             self.requires("zlib/1.2.11@%s/%s" % (self.user, self.channel))
+        if not self.options.without_python:
+            self.requires("python3/%s@%s/%s" % (self.options.python_version, self.user, self.channel))
 
     def package_id(self):
         if self.options.header_only:
             self.info.header_only()
+        else:
+            if self.options.without_python:
+                del self.info.options.python_version
+            else:
+                self.info.options.python_version = self.options.python_version
 
     def source(self):
         if tools.os_info.is_windows:
@@ -88,9 +107,6 @@ class BoostConan(ConanFile):
     ##################### BUILDING METHODS ###########################
 
     def build(self):
-        # Dump build flags
-        #for libname in lib_list:
-        #    self.output.info("XXX: Checking flag \"without_%s\": %s" % (libname,  getattr(self.options, "without_%s" % libname)))
         if self.options.header_only:
             self.output.warn("Header only package, skipping build")
             return
@@ -119,7 +135,7 @@ class BoostConan(ConanFile):
         full_command += ' --debug-configuration --build-dir="%s"' % self.build_folder
         self.output.warn(full_command)
 
-        with tools.vcvars(self.settings) if self.settings.compiler == "Visual Studio" else tools.no_op():
+        with tools.vcvars(self.settings) if self._is_msvc else tools.no_op():
             with tools.chdir(sources):
                 # to locate user config jam (BOOST_BUILD_PATH)
                 with tools.environment_append({"BOOST_BUILD_PATH": self.build_folder}):
@@ -212,11 +228,10 @@ class BoostConan(ConanFile):
         if self.settings.compiler == "gcc":
             flags.append("--layout=system")
 
-        if self.settings.compiler == "Visual Studio" and self.settings.compiler.runtime:
+        if self._is_msvc and self.settings.compiler.runtime:
             flags.append("runtime-link=%s" % ("static" if "MT" in str(self.settings.compiler.runtime) else "shared"))
 
-        if self.settings.os == "Windows" and self.settings.compiler == "gcc":
-            flags.append("threading=multi")
+        flags.append("threading=multi")
 
         flags.append("link=%s" % ("static" if not self.options.shared else "shared"))
         if self.settings.build_type == "Debug":
@@ -228,9 +243,10 @@ class BoostConan(ConanFile):
             if getattr(self.options, "without_%s" % libname):
                 flags.append("--without-%s" % libname)
 
+        toolset, _, _ = self.get_toolset_version_and_exe()
+        flags.append("toolset=%s" % toolset)
+
         if self.settings.cppstd:
-            toolset, _, _ = self.get_toolset_version_and_exe()
-            flags.append("toolset=%s" % toolset)
             flags.append("cxxflags=%s" % cppstd_flag(
                     self.settings.get_safe("compiler"),
                     self.settings.get_safe("compiler.version"),
@@ -241,7 +257,7 @@ class BoostConan(ConanFile):
         # CXX FLAGS
         cxx_flags = []
         # fPIC DEFINITION
-        if self.settings.compiler != "Visual Studio":
+        if self.settings.os != "Windows":
             if self.options.fPIC:
                 cxx_flags.append("-fPIC")
 
@@ -339,7 +355,14 @@ class BoostConan(ConanFile):
                 self.deps_cpp_info["bzip2"].lib_paths[0].replace('\\', '/'),
                 self.deps_cpp_info["bzip2"].libs[0])
 
-        contents += "\nusing python : {} : \"{}\" ;".format(sys.version[:3], sys.executable.replace('\\', '/'))
+        if not self.options.without_python:
+            # https://www.boost.org/doc/libs/1_69_0/libs/python/doc/html/building/configuring_boost_build.html
+            # Using conan python
+            contents += "\nusing python : {version} : {executable} : {includes} :  {libraries} ;"\
+                .format(version=    self.options.python_version,
+                        executable= self.deps_cpp_info["python3"].root_path,
+                        includes=   self.deps_cpp_info["python3"].include_paths[0].replace('\\', '/'),
+                        libraries=  self.deps_cpp_info["python3"].libs[0].replace('\\', '/'))
 
         toolset, version, exe = self.get_toolset_version_and_exe()
         exe = compiler_command or exe  # Prioritize CXX
@@ -376,7 +399,7 @@ class BoostConan(ConanFile):
     def get_toolset_version_and_exe(self):
         compiler_version = str(self.settings.compiler.version)
         compiler = str(self.settings.compiler)
-        if self.settings.compiler == "Visual Studio":
+        if self._is_msvc:
             cversion = self.settings.compiler.version
             _msvc_version = "14.1" if Version(str(cversion)) >= "15" else "%s.0" % cversion
             return "msvc", _msvc_version, ""
@@ -402,9 +425,12 @@ class BoostConan(ConanFile):
 
     ##################### BOOSTRAP METHODS ###########################
     def _get_boostrap_toolset(self):
-        if self.settings.os == "Windows" and self.settings.compiler == "Visual Studio":
+        if self._is_msvc:
             comp_ver = self.settings.compiler.version
             return "vc%s" % ("141" if Version(str(comp_ver)) >= "15" else comp_ver)
+
+        if tools.os_info.is_windows:
+            return ""
 
         with_toolset = {"apple-clang": "darwin"}.get(str(self.settings.compiler),
                                                      str(self.settings.compiler))
@@ -418,7 +444,7 @@ class BoostConan(ConanFile):
         folder = os.path.join(self.source_folder, self.folder_name, "tools", "build")
         try:
             bootstrap = "bootstrap.bat" if tools.os_info.is_windows else "./bootstrap.sh"
-            with tools.vcvars(self.settings) if self.settings.compiler == "Visual Studio" else tools.no_op():
+            with tools.vcvars(self.settings) if self._is_msvc else tools.no_op():
                 self.output.info("Using %s %s" % (self.settings.compiler, self.settings.compiler.version))
                 with tools.chdir(folder):
                     option = "" if tools.os_info.is_windows else "-with-toolset="
@@ -510,7 +536,7 @@ class BoostConan(ConanFile):
                 if not self.options.shared:
                     self.cpp_info.defines.append("BOOST_PYTHON_STATIC_LIB")
 
-            if self.settings.compiler == "Visual Studio":
+            if self._is_msvc:
                 if not self.options.magic_autolink:
                     # DISABLES AUTO LINKING! NO SMART AND MAGIC DECISIONS THANKS!
                     self.cpp_info.defines.extend(["BOOST_ALL_NO_LIB"])
