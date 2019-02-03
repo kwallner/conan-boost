@@ -360,9 +360,9 @@ class BoostConan(ConanFile):
             # Using conan python
             contents += "\nusing python : {version} : {executable} : {includes} :  {libraries} ;"\
                 .format(version=    self.options.python_version,
-                        executable= self.deps_cpp_info["python3"].root_path,
-                        includes=   self.deps_cpp_info["python3"].include_paths[0].replace('\\', '/'),
-                        libraries=  self.deps_cpp_info["python3"].libs[0].replace('\\', '/'))
+                        executable= os.path.join(self.deps_cpp_info["python3"].bin_paths[0], "python%s.exe" % ("_d" if self.settings.build_type == "Debug" else "")).replace('\\', '/'),
+                        includes=   os.path.join(self.deps_cpp_info["python3"].include_paths[0]).replace('\\', '/'),
+                        libraries=  os.path.join(self.deps_cpp_info["python3"].lib_paths[0], "python3%s.lib" % ("_d" if self.settings.build_type == "Debug" else "")).replace('\\', '/'))
 
         toolset, version, exe = self.get_toolset_version_and_exe()
         exe = compiler_command or exe  # Prioritize CXX
