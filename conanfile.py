@@ -26,7 +26,9 @@ lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iost
 
 class BoostConan(ConanFile):
     name = "boost"
-    version = "1.69.0"
+    #version = "1.69.0"
+    version = "1.70.0"
+    _beta_version = "1"
     settings = "os", "arch", "compiler", "build_type", "cppstd"
     folder_name = "boost_%s" % version.replace(".", "_")
     description = "Boost provides free peer-reviewed portable C++ source libraries"
@@ -90,15 +92,21 @@ class BoostConan(ConanFile):
                 self.info.options.python_version = self.options.python_version
 
     def source(self):
+        sha256= None
         if tools.os_info.is_windows:
-            sha256 = "d074bcbcc0501c4917b965fc890e303ee70d8b01ff5712bae4a6c54f2b6b4e52"
+            #sha256 = "d074bcbcc0501c4917b965fc890e303ee70d8b01ff5712bae4a6c54f2b6b4e52"
             extension = ".zip"
         else:
-            sha256 = "9a2c2819310839ea373f42d69e733c339b4e9a19deab6bfec448281554aa4dbb"
+            #sha256 = "9a2c2819310839ea373f42d69e733c339b4e9a19deab6bfec448281554aa4dbb"
             extension = ".tar.gz"
 
-        zip_name = "%s%s" % (self.folder_name, extension)
-        url = "https://dl.bintray.com/boostorg/release/%s/source/%s" % (self.version, zip_name)
+        zip_name = "%s%s%s" % (self.folder_name, "_b%s" % self._beta_version if self._beta_version else "", extension)
+        url = "https://dl.bintray.com/boostorg/%s/%s%s/source/%s" % (
+            "beta" if self._beta_version else "release", 
+            self.version, 
+            ".beta%s" % self._beta_version if self._beta_version else "",
+            zip_name)
+        
         tools.get(url, sha256=sha256)
 
         tools.patch(base_path=os.path.join(self.source_folder, self.folder_name),
