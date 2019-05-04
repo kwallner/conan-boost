@@ -6,37 +6,12 @@ from conans import CMake
 import os
 import sys
 
-lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iostreams', 'locale', 'log',
-            'program_options', 'random', 'regex', 'mpi', 'serialization',
-            'coroutine', 'fiber', 'context', 'timer', 'thread', 'chrono', 'date_time',
-            'atomic', 'filesystem', 'system', 'graph_parallel', 'python',
-            'stacktrace', 'test', 'type_erasure']
-
 
 class DefaultNameConan(ConanFile):
     name = "DefaultName"
     version = "0.1"
     settings = "os", "compiler", "arch", "build_type"
     generators = "cmake"
-    options = {
-        "shared": [True, False],
-        "header_only": [True, False],
-        "fPIC": [True, False],
-        "skip_lib_rename": [True, False],
-        "magic_autolink": [True, False] # enables BOOST_ALL_NO_LIB
-    }
-    options.update({"without_%s" % libname: [True, False] for libname in lib_list})
-
-    default_options = {
-        "shared" : False, 
-        "header_only" : False, 
-        "fPIC" : True,
-        "skip_lib_rename" : False, 
-        "magic_autolink" : False # enables BOOST_ALL_NO_LIB
-    }
-    default_options.update({"without_%s" % libname : libname != "python" for libname in lib_list})
-    default_options.update({"bzip2:shared" : False })
-    default_options.update({"zlib:shared" : False })
 
     def build(self):
         cmake = CMake(self)
@@ -49,6 +24,8 @@ class DefaultNameConan(ConanFile):
         cmake.build()
 
     def test(self):
+        if tools.cross_building(self.settings):
+            return
         bt = self.settings.build_type
         re = RunEnvironment(self)
         with tools.environment_append(re.vars):
