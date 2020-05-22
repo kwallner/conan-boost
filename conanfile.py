@@ -25,9 +25,10 @@ lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iost
 
 class BoostConan(ConanFile):
     name = "boost"
+    version = "1.73.0"
     settings = "os", "arch", "compiler", "build_type"
     description = "Boost provides free peer-reviewed portable C++ source libraries"
-    url = "https://github.com/conan-io/conan-center-index"
+    url = "https://github.com/kwallner/conan-boost"
     homepage = "https://www.boost.org"
     license = "BSL-1.0"
     topics = ("conan", "boost", "libraries", "cpp")
@@ -170,10 +171,12 @@ class BoostConan(ConanFile):
                 self.info.options.python_version = self._python_version
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        if self.version in self.conan_data["patches"]:
-            for patch in self.conan_data["patches"][self.version]:
-                tools.patch(**patch)
+        folder_name = "boost_%s" % self.version.replace(".", "_")
+        zip_name = "%s%s" % (folder_name, ".zip" if tools.os_info.is_windows else ".tar.gz")
+        url = "https://dl.bintray.com/boostorg/release/%s/source/%s" % (self.version, zip_name)
+        tools.get(url, sha256= "0909a79524f857ef54570ceef8f397cc0629202532cc997785479c7c08bbc2a4" if tools.os_info.is_windows else "9995e192e68528793755692917f9eb6422f3052a53c5e13ba278a228af6c7acf")
+        tools.patch("patches/boost_build_qcc_fix_debug_build_parameter.patch")
+        tools.patch("patches/boost_build_qcc_fix_debug_build_parameter.patch")
 
     ##################### BUILDING METHODS ###########################
 
